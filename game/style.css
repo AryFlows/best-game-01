@@ -1,0 +1,6 @@
+* { box-sizing: border-box; }
+html, body { min-height: 100%; margin: 0; }
+body { display: grid; place-items: center; background: #0d0c1a; color: #aaa8bd; font: 13px system-ui, sans-serif; }
+main { width: min(100%, 1280px); margin: auto; }
+canvas { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; image-rendering: auto; border: 1px solid #353149; box-shadow: 0 18px 60px rgba(0,0,0,.55); }
+footer { padding: 10px 8px; text-align: center; letter-spacing: 0; }

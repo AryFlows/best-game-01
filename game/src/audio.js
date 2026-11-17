@@ -65,6 +65,7 @@ export class AudioEngine {
   victory() { this._chord([523, 659, 784, 1047], 0.85, 0.095); }
   gameOver() { this._chord([392, 311, 233], 0.95, 0.09); }
   upgradePick() { this._chord([523, 659, 880], 0.35, 0.09); }
+  nova() { this._tone(180, 0.5, { type: 'sawtooth', volume: 0.16, endFrequency: 40 }); this._chord([523, 784], 0.4, 0.08); }
 
   startMusic() {
     if (!this.context || this.musicTimer || !this.musicEnabled || this._shotMode) return;

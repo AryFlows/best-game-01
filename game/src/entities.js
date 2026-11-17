@@ -8,10 +8,18 @@ export function createPlayer() {
   return { x: FIELD.width / 2, y: FIELD.height / 2, vx: 0, vy: 0, hp: PLAYER.hp, maxHp: PLAYER.hp, hurtCooldown: 0, angle: -Math.PI / 2, fireTimer: 0, dashTimer: 0, dashCooldown: 0, upgrades: {} };
 }
 
-export function spawnEnemy(kind, x, y, rng) {
+export function spawnEnemy(kind, x, y, rng, elite = false) {
   const spec = ENEMIES[kind] || BOSSES[kind] || ENEMIES.drifter;
   const boss = Boolean(BOSSES[kind]);
-  return { kind, x, y, vx: 0, vy: 0, hp: spec.hp, maxHp: spec.hp, radius: spec.radius, speed: spec.speed, score: spec.score, state: 'approach', timer: rand(rng, 0.3, 1.2), target: 'player', bloomIndex: -1 };
+  const enemy = { kind, x, y, vx: 0, vy: 0, hp: spec.hp, maxHp: spec.hp, radius: spec.radius, speed: spec.speed, score: spec.score, state: 'approach', timer: rand(rng, 0.3, 1.2), target: 'player', bloomIndex: -1 };
+  if (elite && !boss) {
+    enemy.elite = true;
+    enemy.hp = enemy.maxHp = Math.round(spec.hp * 1.8);
+    enemy.radius = Math.round(spec.radius * 1.25);
+    enemy.speed = Math.round(spec.speed * 0.95);
+    enemy.score = spec.score * 2;
+  }
+  return enemy;
 }
 
 export function createBullet(x, y, angle, speed, damage, from = 'player') {
@@ -89,18 +97,60 @@ export function updateEnemies(state, dt, rng, audio, fx) {
       if (e.timer <= 0 && target === player) { const b = createBullet(e.x, e.y, angle, 260, 10, 'enemy'); state.bullets.push(b); e.timer = 2.1; }
       e.vx = Math.cos(angle) * speed; e.vy = Math.sin(angle) * speed;
     } else if (e.kind === 'Gloomwing' || e.kind === 'Queen') {
-      if (e.timer <= 0) {
+      // Bosses advance on their target like any moth; without this they sat
+      // motionless at the spawn edge for the whole fight. A telegraphing or
+      // charging Gloomwing holds its own velocity instead.
+      if (!(e.kind === 'Gloomwing' && (e.state === 'telegraph' || e.state === 'charging'))) { e.vx = Math.cos(angle) * speed; e.vy = Math.sin(angle) * speed; }
+      if (e.timer <= 0 && e.state !== 'telegraph' && e.state !== 'charging') {
         if (e.kind === 'Queen' && e.state !== 'burst') { for (let i = 0; i < 2; i++) state.enemies.push(spawnEnemy('darter', e.x + rand(rng, -50, 50), e.y + rand(rng, -50, 50), rng)); e.timer = 8; }
-        else { const n = 12; for (let i = 0; i < n; i++) state.bullets.push(createBullet(e.x, e.y, i * Math.PI * 2 / n, 210, 12, 'enemy')); e.timer = e.kind === 'Queen' ? 5 : 6; e.state = 'burst'; audio?.bossRoar?.(); }
+        else { const n = 12; for (let i = 0; i < n; i++) state.bullets.push(createBullet(e.x, e.y, i * Math.PI * 2 / n, 210, 12, 'enemy')); if (e.kind === 'Queen') { const pa = Math.atan2(player.y - e.y, player.x - e.x); for (let k = -1; k <= 1; k++) state.bullets.push(createBullet(e.x, e.y, pa + k * 0.18, 300, 12, 'enemy')); } e.timer = e.kind === 'Queen' ? 5 : 6; e.state = 'burst'; audio?.bossRoar?.(); }
       }
-      if (e.kind === 'Gloomwing' && e.state !== 'charge') e.state = 'charge';
+      // Gloomwing's charge: a telegraphed dash at Luma. The roar and the red
+      // glow (see render) give the player a fair dodge window.
+      if (e.kind === 'Gloomwing') {
+        if (e.chargeTimer === undefined) e.chargeTimer = 5;
+        e.chargeTimer -= dt;
+        if (e.state === 'telegraph' && e.timer <= 0) { e.state = 'charging'; e.timer = 0.45; const ca = e.chargeAngle || 0; e.vx = Math.cos(ca) * 480; e.vy = Math.sin(ca) * 480; }
+        else if (e.state === 'charging' && e.timer <= 0) { e.state = 'approach'; e.chargeTimer = 6 + rand(rng, 0, 2); }
+        else if (e.state !== 'telegraph' && e.state !== 'charging' && e.chargeTimer <= 0 && Math.sqrt(dist2(e, player)) < 420) { e.state = 'telegraph'; e.timer = 0.8; e.chargeAngle = Math.atan2(player.y - e.y, player.x - e.x); audio?.bossRoar?.(); }
+        if (e.state === 'telegraph') { e.vx = 0; e.vy = 0; }
+      }
     } else { e.vx = Math.cos(angle) * speed; e.vy = Math.sin(angle) * speed; }
     e.x = clamp(e.x + e.vx * dt, e.radius, FIELD.width - e.radius);
     e.y = clamp(e.y + e.vy * dt, e.radius, FIELD.height - e.radius);
-    if (e.target === 'bloom' && Math.sqrt(dist2(e, target)) < e.radius + 18) target.hp = Math.max(0, target.hp - 6 * dt);
-    if (e.target === 'player' && Math.sqrt(dist2(e, player)) < e.radius + 14 && !player.dashTimer && player.hurtCooldown <= 0) { player.hp -= 12 * dt; player.hurtCooldown = 0.5; audio?.playerHurt?.(); }
+    if (e.target === 'bloom' && Math.sqrt(dist2(e, target)) < e.radius + 18) target.hp = Math.max(0, target.hp - 5 * dt);
+    // Touching a moth hurts: a flat hit with a brief invulnerability window
+    // and a knockback, so standing inside the swarm is a real mistake.
+    if (e.target === 'player' && Math.sqrt(dist2(e, player)) < e.radius + 14 && !player.dashTimer && player.hurtCooldown <= 0) {
+      player.hp -= 6; player.hurtCooldown = 0.8;
+      const ka = Math.atan2(player.y - e.y, player.x - e.x);
+      player.x = clamp(player.x + Math.cos(ka) * 26, 14, FIELD.width - 14);
+      player.y = clamp(player.y + Math.sin(ka) * 26, 14, FIELD.height - 14);
+      audio?.playerHurt?.(); fx?.shake?.(0.35);
+    }
   }
   void fx;
+}
+
+// One death path for gun kills, nova kills and any other damage source:
+// combo, score, pollen, effects and the splitter's split all live here, so a
+// moth always pays the same no matter what killed it.
+function handleEnemyDeath(state, e, rng, audio, fx) {
+  if (e.scored) return;
+  e.scored = true;
+  if (state.comboTimer > 0) state.combo = Math.min(5, (state.combo || 1) + 1);
+  else state.combo = 1;
+  state.comboTimer = 2.5;
+  state.score = (state.score || 0) + e.score * state.combo;
+  if (state.stats) state.stats.kills++;
+  state.pollen?.push(createPollen(e.x, e.y, e.kind === 'Queen' ? 8 : e.kind === 'Gloomwing' ? 5 : 1, rng));
+  audio?.enemyDie?.();
+  fx?.burst?.(e.x, e.y, '#b58be8', 20, 150);
+  if (e.kind === 'Gloomwing' || e.kind === 'Queen') { fx?.burst?.(e.x, e.y, '#e2c7ff', 60, 280); fx?.burst?.(e.x, e.y, '#ffd77a', 40, 200); fx?.shake?.(0.7); }
+  if (e.kind === 'splitter') {
+    for (let i = 0; i < 2; i++) state.enemies.push(spawnEnemy('darter', e.x + rand(rng, -18, 18), e.y + rand(rng, -18, 18), rng));
+    fx?.burst?.(e.x, e.y, '#7fd9a8', 14, 130);
+  }
 }
 
 export function updateBullets(state, dt, rng, audio, fx) {
@@ -110,19 +160,14 @@ export function updateBullets(state, dt, rng, audio, fx) {
     let remove = b.life <= 0 || b.x < -20 || b.y < -20 || b.x > FIELD.width + 20 || b.y > FIELD.height + 20;
     if (!remove && b.from === 'player') for (const e of state.enemies || []) if (e.hp > 0 && dist2(b, e) < (b.radius + e.radius) ** 2) {
       e.hp -= b.damage; remove = true; audio?.hit?.(); fx?.damageNumber?.(e.x, e.y - e.radius, b.damage, '#fff0b0');
-      if (e.hp <= 0) {
-        if (state.comboTimer > 0) state.combo = Math.min(5, (state.combo || 1) + 1);
-        else state.combo = 1;
-        state.comboTimer = 2.5;
-        state.score = (state.score || 0) + e.score * state.combo;
-        if (state.stats) state.stats.kills++;
-        state.pollen?.push(createPollen(e.x, e.y, e.kind === 'Queen' ? 8 : e.kind === 'Gloomwing' ? 5 : 1, rng)); audio?.enemyDie?.(); fx?.burst?.(e.x, e.y, '#b58be8', 12, 110);
-      }
+      if (e.hp <= 0) handleEnemyDeath(state, e, rng, audio, fx);
       break;
     }
     if (!remove && b.from === 'enemy' && dist2(b, state.player) < (b.radius + 14) ** 2) { state.player.hp -= b.damage; remove = true; audio?.playerHurt?.(); }
     if (remove) bullets.splice(i, 1);
   }
+  // Deaths from other sources (the nova) are scored on the same path.
+  for (const e of state.enemies || []) if (e.hp <= 0) handleEnemyDeath(state, e, rng, audio, fx);
   state.enemies = (state.enemies || []).filter((e) => e.hp > 0);
 }
 

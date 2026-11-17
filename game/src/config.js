@@ -17,11 +17,12 @@ export const ENEMIES = {
   darter: { hp: 12, speed: 150, radius: 12, score: 80 },
   spitter: { hp: 24, speed: 70, radius: 15, score: 120 },
   husk: { hp: 90, speed: 34, radius: 22, score: 200 },
+  splitter: { hp: 26, speed: 75, radius: 15, score: 150 },
 };
 
 export const BOSSES = {
-  Gloomwing: { hp: 600, speed: 60, radius: 44, score: 1500 },
-  Queen: { hp: 1400, speed: 70, radius: 56, score: 5000 },
+  Gloomwing: { hp: 1100, speed: 60, radius: 44, score: 1500 },
+  Queen: { hp: 1800, speed: 70, radius: 56, score: 5000 },
 };
 
 export const BLOOMS = Array.from({ length: 5 }, (_, i) => {
@@ -34,16 +35,16 @@ export const BLOOMS = Array.from({ length: 5 }, (_, i) => {
 });
 
 export const WAVE = {
-  1: { drifter: 8, darter: 0, spitter: 0, husk: 0, spawnInterval: 1.1, boss: null },
-  2: { drifter: 10, darter: 3, spitter: 0, husk: 0, spawnInterval: 1.0, boss: null },
-  3: { drifter: 10, darter: 5, spitter: 2, husk: 0, spawnInterval: 0.95, boss: null },
-  4: { drifter: 12, darter: 6, spitter: 4, husk: 1, spawnInterval: 0.9, boss: null },
-  5: { drifter: 12, darter: 7, spitter: 5, husk: 2, spawnInterval: 0.85, boss: 'Gloomwing' },
-  6: { drifter: 14, darter: 8, spitter: 6, husk: 3, spawnInterval: 0.8, boss: null },
-  7: { drifter: 16, darter: 9, spitter: 7, husk: 4, spawnInterval: 0.75, boss: null },
-  8: { drifter: 18, darter: 10, spitter: 8, husk: 5, spawnInterval: 0.7, boss: null },
-  9: { drifter: 20, darter: 12, spitter: 10, husk: 6, spawnInterval: 0.65, boss: null },
-  10: { drifter: 20, darter: 14, spitter: 12, husk: 8, spawnInterval: 0.6, boss: 'Queen' },
+  1: { drifter: 8, darter: 0, spitter: 0, husk: 0, splitter: 0, spawnInterval: 1.0, boss: null },
+  2: { drifter: 12, darter: 3, spitter: 0, husk: 0, splitter: 0, spawnInterval: 0.9, boss: null },
+  3: { drifter: 12, darter: 6, spitter: 2, husk: 0, splitter: 2, spawnInterval: 0.85, boss: null },
+  4: { drifter: 14, darter: 7, spitter: 5, husk: 1, splitter: 3, spawnInterval: 0.8, boss: null },
+  5: { drifter: 14, darter: 8, spitter: 6, husk: 2, splitter: 3, spawnInterval: 0.75, boss: 'Gloomwing' },
+  6: { drifter: 16, darter: 9, spitter: 7, husk: 4, splitter: 4, spawnInterval: 0.7, boss: null },
+  7: { drifter: 18, darter: 10, spitter: 8, husk: 5, splitter: 5, spawnInterval: 0.65, boss: null },
+  8: { drifter: 20, darter: 11, spitter: 9, husk: 6, splitter: 6, spawnInterval: 0.6, boss: null },
+  9: { drifter: 22, darter: 13, spitter: 11, husk: 7, splitter: 7, spawnInterval: 0.55, boss: null },
+  10: { drifter: 22, darter: 15, spitter: 13, husk: 9, splitter: 8, spawnInterval: 0.5, boss: 'Queen' },
 };
 
 export const UPGRADES = {

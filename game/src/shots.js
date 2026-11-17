@@ -16,15 +16,32 @@ export function makeDriver(game) {
   const driver = {
     mouse: { ...CENTER },
     mouseButtons,
+    pacifist: false,
+    // Staging only: hold fire while the boss walks to the middle of the field,
+    // so the boss screenshot catches a real mid-field fight instead of a kill
+    // at the spawn edge. The game itself is unchanged.
+    setPacifist(v) {
+      this.pacifist = v;
+      if (v) mouseButtons.clear();
+      else mouseButtons.add(0);
+    },
     update() {
       keys.clear();
       const player = state.player;
+      // A bloom with a moth chewing on it is the top priority: losing all
+      // five ends the run, so the driver defends blooms before chasing pollen.
+      const threatenedBloom = (state.blooms || []).find((b) => b.hp > 0 && b.lit !== false
+        && state.enemies.some((e) => Math.hypot(e.x - b.x, e.y - b.y) < e.radius + 24));
       const nearest = (items) => items.reduce((best, item) => {
         const distance = Math.hypot(item.x - player.x, item.y - player.y);
         return !best || distance < best.distance ? { item, distance } : best;
       }, null);
       if (aimTimer <= 0) {
-        aimTarget = nearest(state.enemies.filter((item) => item.hp > 0))?.item ?? null;
+        const anchor = threatenedBloom || player;
+        aimTarget = state.enemies.filter((item) => item.hp > 0).reduce((best, item) => {
+          const distance = Math.hypot(item.x - anchor.x, item.y - anchor.y);
+          return !best || distance < best.distance ? { item, distance } : best;
+        }, null)?.item ?? null;
         aimOffsetX = aimTarget ? state.rng.range(-35, 35) : 0;
         aimOffsetY = aimTarget ? state.rng.range(-35, 35) : 0;
         aimTimer = 30;
@@ -39,6 +56,9 @@ export function makeDriver(game) {
       if (enemy?.distance < 150) {
         dx = player.x - enemy.item.x;
         dy = player.y - enemy.item.y;
+      } else if (threatenedBloom) {
+        dx = threatenedBloom.x - player.x;
+        dy = threatenedBloom.y - player.y;
       } else if (pollen?.distance < 420) {
         dx = pollen.item.x - player.x;
         dy = pollen.item.y - player.y;
@@ -50,9 +70,20 @@ export function makeDriver(game) {
       if (Math.abs(dy) > 1) keys.add(dy > 0 ? 'KeyS' : 'KeyW');
       this.mouse.x = enemy ? enemy.item.x + aimOffsetX : CENTER.x;
       this.mouse.y = enemy ? enemy.item.y + aimOffsetY : CENTER.y;
+      // Nova when swarmed: the same panic button a player would reach for.
+      if (state.nova && state.nova.cooldown <= 0 && state.pollenCount >= 15
+        && state.enemies.filter((item) => Math.hypot(item.x - player.x, item.y - player.y) < 280).length >= 4) {
+        game._nova?.();
+      }
     },
-    isDown(code) { return code === 'Space' || keys.has(code); },
-    consumePressed() { return false; },
+    isDown(code) { return (code === 'Space' && !this.pacifist) || keys.has(code); },
+    // Dash out of danger like a player would: Shift the moment a moth closes
+    // in, while the cooldown allows it.
+    consumePressed(code) {
+      if ((code === 'ShiftLeft' || code === 'ShiftRight') && state.player.dashCooldown <= 0
+        && state.enemies.some((e) => Math.hypot(e.x - state.player.x, e.y - state.player.y) < 110)) return true;
+      return false;
+    },
   };
   return driver;
 }
@@ -82,6 +113,11 @@ function runScene(game, driver, name, cap) {
     if (s.screen === 'over' || s.screen === 'victory') break;
     if (s.screen === 'upgrade') game._pick(0);
     if (s.screen !== 'play') break;
+    if (name === 'boss') {
+      const b = s.enemies.find((enemy) => enemy.kind === 'Gloomwing' || enemy.kind === 'Queen');
+      const fresh = firstBossStep === null || step - firstBossStep < 900;
+      driver.setPacifist(!!b && fresh && (b.x < 200 || b.x > 1080 || b.y < 120 || b.y > 600));
+    }
     driver.update();
     game._step(STEP);
     const boss = s.enemies.find((enemy) => enemy.kind === 'Gloomwing' || enemy.kind === 'Queen');
@@ -89,9 +125,18 @@ function runScene(game, driver, name, cap) {
       firstBoss = boss;
       firstBossStep = step;
     }
-    if (name === 'play' && s.wave >= 2 && s.enemies.length >= 4 && s.score > 0) break;
-    if (name === 'boss' && firstBossStep !== null && step - firstBossStep >= 60
-      && firstBoss.hp > 0 && firstBoss.hp < firstBoss.maxHp) break;
+    if (name === 'play' && s.wave >= 4 && s.enemies.length >= 5 && s.bullets.length >= 3) break;
+    if (name === 'play' && step > 70 * 60 && s.enemies.length >= 3) break;
+    // Boss shot: wait for a real mid-fight moment — the boss damaged, adds on
+    // screen, and the boss near the middle of the field (never half-clipped in
+    // a corner). The driver holds fire until the boss is centred (see
+    // setPacifist), so the fight starts mid-field.
+    if (name === 'boss' && firstBossStep !== null && firstBoss.hp > 0
+      && firstBoss.hp < firstBoss.maxHp * 0.92 && firstBoss.x > 150 && firstBoss.x < 1130
+      && firstBoss.y > 100 && firstBoss.y < 620 && s.enemies.length >= 2) break;
+    if (name === 'boss' && firstBossStep !== null && step - firstBossStep > 1200
+      && firstBoss.hp > 0 && firstBoss.hp < firstBoss.maxHp
+      && firstBoss.x > 100 && firstBoss.x < 1180 && firstBoss.y > 60 && firstBoss.y < 660) break;
     if (name === 'victory' && s.screen === 'victory') break;
   }
 }
@@ -104,7 +149,9 @@ export function stageShot(name, game) {
     s.screen = 'title';
     for (let i = 0; i < 300; i++) game._step(STEP);
   } else {
-    const cap = name === 'play' ? 45 * 60 : name === 'boss' ? 90 * 60 : 150 * 60;
+    // 'soak' plays the whole game from wave 1 with ordinary upgrades: the
+    // balance check. It is a test scene only, never a submitted screenshot.
+    const cap = name === 'play' ? 80 * 60 : name === 'boss' ? 90 * 60 : name === 'soak' ? 420 * 60 : 150 * 60;
     const driver = makeDriver(game);
     for (let attempt = 0; attempt < 2; attempt++) {
       resetScene(game, seed + attempt * 100, name);
@@ -114,9 +161,10 @@ export function stageShot(name, game) {
     if (name === 'victory') {
       s.screen = 'victory';
       s.stats.bloomsSaved = s.blooms.filter((b) => b.lit).length;
+      game._fireworks();
     }
   }
   game._render();
   window.__shotReady = true;
-  window.__shotInfo = { scene: name, wave: s.wave, score: s.score, kills: s.stats.kills, time: s.stats.timePlayed };
+  window.__shotInfo = { scene: name, screen: s.screen, wave: s.wave, score: s.score, kills: s.stats.kills, time: s.stats.timePlayed, enemies: s.enemies.length, bullets: s.bullets.length, hp: Math.ceil(s.player.hp), bloomsLit: s.blooms.filter((b) => b.lit).length };
 }

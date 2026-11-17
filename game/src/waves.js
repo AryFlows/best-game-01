@@ -5,10 +5,10 @@ export function buildWave(n, rng) {
   const spec = WAVE[n] || WAVE[10];
   const queue = [];
   if (spec.boss) queue.push({ kind: spec.boss, delay: 0 });
-  const kinds = ['drifter', 'darter', 'spitter', 'husk'];
+  const kinds = ['drifter', 'darter', 'spitter', 'husk', 'splitter'];
   let delay = spec.boss ? 6 : 0;
   for (const kind of kinds) for (let i = 0; i < spec[kind]; i++) queue.push({ kind, delay: delay += spec.spawnInterval });
-  if (spec.boss) queue.splice(1, queue.length - 1, ...queue.slice(1).map((entry) => ({ ...entry, delay: entry.delay + 6 })));
+  if (spec.boss) queue.splice(1, queue.length - 1, ...queue.slice(1).map((entry) => ({ ...entry, delay: entry.delay + 2 })));
   void rng;
   return { queue, total: queue.length, isBoss: Boolean(spec.boss) };
 }
@@ -29,7 +29,9 @@ export function spawnTick(state, dt, rng) {
     const y = edge === 2 ? margin : edge === 3 ? FIELD.height - margin : rng.range(margin, FIELD.height - margin);
     let sx = x, sy = y;
     if (Math.hypot(x - state.player.x, y - state.player.y) < 220) { sx = Math.max(margin, Math.min(FIELD.width - margin, state.player.x + Math.cos(angle) * 260)); sy = Math.max(margin, Math.min(FIELD.height - margin, state.player.y + Math.sin(angle) * 260)); }
-    state.enemies.push(spawnEnemy(kind, sx, sy, rng));
+    // From wave 6, a few moths arrive as elites: tougher, bigger, worth double.
+    const elite = state.wave >= 6 && kind !== 'Gloomwing' && kind !== 'Queen' && rng.chance(0.12);
+    state.enemies.push(spawnEnemy(kind, sx, sy, rng, elite));
   }
 }
 

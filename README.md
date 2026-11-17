@@ -17,13 +17,16 @@ If every bloom goes dark, the grove is lost. If Luma falls, it is lost
 too. Survive all 10 waves and burn down the Gloom Moth Queen to win.
 
 - **Move** with WASD or arrow keys, **aim** with the mouse, **hold click**
-  (or Space) to shoot light. Touch a bloom to mend it with pollen.
+  (or Space) to shoot light. **Shift** dashes through danger, and **E**
+  spends pollen on a nova blast that clears the moths around you. Touch
+  a bloom to mend it with pollen.
 - **Pollen** is the grove's currency: moths drop it, blooms pay it out.
   Between waves, pick 1 of 3 upgrades — wider light, faster wings,
   thorn bulbs that fight beside you, a pollen magnet, and more.
-- **Waves grow**: drifters, darters, spitters, armoured husks, and a
-  boss every 5th wave. The grove darkens as blooms fall, and brightens
-  as you save it.
+- **Waves grow**: drifters, darters, spitters, armoured husks, splitters
+  that burst into darters when they die, and golden elites from wave 6
+  on. A boss comes every 5th wave — the Gloomwing telegraphs a charge,
+  the Queen rains aimed fire — and the grove darkens as blooms fall.
 - **Score** for every moth burned, with a combo multiplier for quick
   chains. Best score is kept in your browser.
 
